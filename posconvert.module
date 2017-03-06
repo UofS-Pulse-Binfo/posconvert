@@ -1,0 +1,712 @@
+<?php
+
+/**
+ * @file
+ * The main functionality of this module.
+ */
+
+module_load_include('php', 'posconvert', 'includes/posconvert_convert_SNPs_with_agp');
+
+/**
+ * Implements hook_menu().
+ */
+function posconvert_menu() {
+  // Pos convert form.
+  $items['posconvert'] = array(
+    'title' => 'PosCONVERT',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('posconvert_form'),
+    'access arguments' => array('position convert'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // Pos convert tripal download api implementation.
+  $items['posconvert/convert'] = array(
+    'title' => 'Download Conversion',
+    'page callback' => 'trpdownload_download_page',
+    'page arguments' => array('agp_posconvert_tsv'),
+    'access arguments' => array('position convert'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+
+/**
+ * Implements hook_permission().
+ */
+function posconvert_permission() {
+  return array(
+    'position convert' => array(
+      'title' => t('Access module to convert marker positions.'),
+    )
+  );
+}
+
+
+/**
+ * Implements hook_theme().
+ */
+function posconvert_theme($existing, $type, $theme, $path) {
+  $items['posconvert_form'] = array(
+    'render element' => 'form',
+    'template' => 'posconvert_page',
+    'path' => $path . '/theme',
+  );
+
+  return $items;
+}
+
+
+/**
+ * Implements hook_preprocess().
+ */
+function posconvert_preprocess_posconvert_form(&$variables, $hook) {
+  // Path to module.
+  $posconvert_path = drupal_get_path('module', 'posconvert');
+  // Sample File containing positions.
+  $sample_Lc08 = $posconvert_path . '/includes/sample_lc08_positions.inc';
+
+  $variables['posconvert_sample_file'] = $sample_Lc08;
+}
+
+
+/**
+ * Implements hook_form().
+ */
+function posconvert_form($form, &$form_state) {
+  // Holds text data (either pasted or a file).
+  $text_data = '';
+
+  // AJAX callback wrapper.
+  // This wraps textarea and gets updated through AJAX - Upload File/Load Text Data.
+  $form['ajax_wrapper_textarea'] = array(
+    '#type' => 'markup',
+    '#prefix' => '<div id="ajax-wrapper-textarea">',
+    '#suffix' => '</div>',
+  );
+
+  // File has been upload, get the contents of the file and load
+  // the value to the textarea as if it were pasted by user.
+  if (isset($form_state['values']['file']) && $form_state['values']['file'] > 0) {
+    // Load file object.
+    $f = file_load($form_state['values']['file']);
+    // Read contents.
+    $text_data = file_get_contents($f->uri);
+
+    // Load only portion of the file and not the entire file.
+    // Since we only need the first x number of rows to get column numbers.
+    // Doing so, shortens the wait time in case file is soooo large.
+    list($text_data, $file_row_count) = posconvert_read_textdata($text_data, 'lim_rows');
+
+    // Store the FID of the file and to be processed in hook_submit()
+    // when file is provided instead of pasted text data.
+    $form['ajax_wrapper_textarea']['file_fid'] = array(
+      '#type'  => 'hidden',
+      '#value' => $f->fid,
+    );
+  }
+
+  // Textarea field where user will paste data for conversion.
+  // AJAX - read text pasted and construct select boxes containing columns # for backbone and position.
+  $form['ajax_wrapper_textarea']['txt_data'] = array(
+    '#title' => '',
+    '#type' => 'textarea',
+    '#rows' => 21,
+    '#resizable' => FALSE,
+    '#id' => 'txt-data-field',
+
+    // When given a text - AJAX process it and load step 02 of conversion.
+    '#ajax' => array(
+      'event' => 'input',
+      'callback' => 'ajax_callback_load_step02',
+      'wrapper' => 'ajax-wrapper-load-step02',
+      'progress' => array('type' => 'throbber', 'message' => 'Please wait...')
+    ),
+
+    // Contains markup for button to clear/reset form.
+    '#prefix' => '
+      <div id="form-field-textarea">
+        <span id="link-upload-container"><a href="#" id="link-upload-file">or Load text data from file</a></span>
+        <div id="link-reset-form-container" title="Clear"><span>Clear</span></div>',
+    '#suffix' => '</div>',
+  );
+
+  // When file is provided, load the parsed text into this text area then load step 02.
+  if (!empty($text_data)) {
+    $form['ajax_wrapper_textarea']['txt_data']['#value'] = $text_data;
+  }
+
+
+  // File Uploader Window.
+  // Field Container.
+  $form['upload_container'] = array(
+    '#type' => 'markup',
+    '#prefix' => '<div id="container-file-upload">
+      <div id="container-upload-fields">',
+    '#suffix' => '</div></div>',
+  );
+
+  // File form element.
+  $form['upload_container']['file'] = array(
+    '#type' => 'managed_file',
+    '#title' => 'Choose File (vcf, list, txt, or tsv)',
+    '#upload_location' => 'public://',
+
+    '#upload_validators' => array(
+      // List of valid file extensions - maker position file.
+      // vcf, list, txt, tsv
+      'file_validate_extensions' => array('vcf list txt tsv'),
+    ),
+  );
+
+  // Cancel link.
+  $form['upload_container']['load_file_data_cancel'] = array(
+    '#type' => 'markup',
+    '#markup' => '<a href="#" id="link-upload-cancel">X</a>',
+  );
+
+  // When file is supplied to the uploader, click this checkbox
+  // to refresh the page with the data parsed from the file to the textarea
+  // and proceede to next step as if data were pasted to the textarea.
+  // RELOAD TEXTAREA.
+  $form['upload_container']['load_file_data'] = array(
+    '#type' => 'button',
+    '#value' => 'Load text data',
+    '#id' => 'btn-load-file-data-to-txtfield',
+    '#ajax' => array(
+      'event' => 'click',
+      'callback' => 'ajax_callback_load_step02_load',
+      'wrapper' => 'ajax-wrapper-textarea',
+      // Exclude wait message since window will hide and refresh the page,
+      // this way only single AJAX wait message gets shown to user.
+      'progress' => array('type' => '', 'message' => ''),
+    ),
+  );
+
+  // Use this field to AJAX reload the form and show the column # selector.
+  // An event listerner will fire a click event in the same way as the textarea.
+  // RELOAD STEP 2.
+  $form['load_file_data_refresh'] = array(
+    '#type' => 'checkbox',
+    '#value' => 'refresh',
+    '#id' => 'chk-load-file-data-to-txtfield-refresh',
+    '#ajax' => array(
+      'event' => 'click',
+      'callback' => 'ajax_callback_load_step02',
+      'wrapper' => 'ajax-wrapper-load-step02',
+      // Main AJAX wait message to shown to user.
+      'progress' => array('type' => 'throbber', 'message' => 'Please wait...'),
+    ),
+  );
+
+
+  // AJAX callback wrapper.
+  // This wraps step 2 and gets reloaded on AJAX - Text pasted on textarea
+  $form['ajax_wrapper'] = array(
+    '#type' => 'markup',
+    '#prefix' => '<div id="ajax-wrapper-load-step02">',
+    '#suffix' => '</div>',
+  );
+
+  // Textarea receives text data.
+  if (isset($form_state['values']['txt_data'])) {
+    // THE AGP.
+    $AGP_file = file(drupal_get_path('module', 'posconvert') . '/includes/lens_culinaris_v0_8_lookup.agp');
+
+    // Text data pasted.
+    $txt_data = $form_state['values']['txt_data'];
+
+    // Create a markup for error message.
+    $form['ajax_wrapper']['error'] = array();
+
+    if (strlen($txt_data) <= 10) {
+      // Text data is too short.
+      $form['ajax_wrapper']['error']['#markup'] =
+        '<div class="messages error">Text data length is too short. Please try again.</div>';
+    }
+    else {
+      // Next test, see if it has sufficient columns.
+      list($cols, $lines, $check_rows) = posconvert_read_textdata($txt_data, 'get_cols');
+
+      // Since only section of the file is retured, ensure the tripal download api
+      // uses the right number of lines/rows.
+      if (isset($file_row_count)) {
+        $lines = $file_row_count;
+      }
+
+      if ($cols < 2 || count($check_rows) <= 0) {
+        // Not enough columns.
+        $form['ajax_wrapper']['error']['#markup'] =
+          '<div class="messages error">Text data does not contain enough columns/rows or is not tab separated. Please try again.</div>';
+      }
+      else {
+        // Load step 02.
+        // Let user select backbone and position column.
+        // Generate options of column # for select boxes.
+        $arr_sel_options = array();
+
+        for($i = 0; $i <= $cols; $i++) {
+          $arr_sel_options[$i] = ($i == 0) ? '---' : 'Column #' . $i;
+        }
+
+        // Instructions and text.
+        $form['ajax_wrapper']['txt_instructions'] = array(
+          '#markup' => '
+            <div class="div-step-container">
+              <span>2.</span>
+              <h3>Select Backbone and Position Columns.</h3>
+              <p>Using the following dropdowns, you will need to specify which columns contain the information for the location of your markers on the genome version you are converting from.
+              The leftmost column is column #1. Any additional columns in your pasted text will remain unaltered when you download your converted file.</p>
+            </div>'
+        );
+
+        // Backbone.
+        $form['ajax_wrapper']['sel_bone'] = array(
+          '#type' => 'select',
+          '#title' => t('Select Backbone:'),
+          '#options' => $arr_sel_options,
+          '#id' => 'sel-backbone',
+
+          // Check if both select boxex have values.
+          '#ajax' => array(
+            'event' => 'change',
+            'callback' => 'ajax_callback_load_step02_columns',
+            'wrapper' => 'ajax-wrapper-load-step02-columns',
+            'progress' => array('type' => '', 'message' => '')
+          ),
+
+          '#prefix' => '<div class="div-form-field">',
+          '#suffix' => '
+            <div class="help-icon" title="Help">&nbsp;</div>
+            <div class="help-text">
+              <p>
+                Select which column contains the name of your backbone (i.e.: contig, scaffold or chromosome) which your marker is located on. For example: <em>LcContig012345</em>
+              </p>
+            </div>
+
+          </div>',
+        );
+
+        // Position.
+        $form['ajax_wrapper']['sel_pos'] = array(
+          '#type' => 'select',
+          '#title' => t('Select Position:'),
+          '#options' => $arr_sel_options,
+          '#id' => 'sel-position',
+
+          // Check if both select boxex have values.
+          '#ajax' => array(
+            'event' => 'change',
+            'callback' => 'ajax_callback_load_step02_columns',
+            'wrapper' => 'ajax-wrapper-load-step02-columns',
+            'progress' => array('type' => '', 'message' => '')
+          ),
+
+          '#prefix' => '<div class="div-form-field">',
+          '#suffix' => '
+            <div class="help-icon" title="help">&nbsp;</div>
+            <div class="help-text">
+              <p>
+                Select which column contains the position of your markers on their respective backbones. Ensure this column contains only positive numbers
+              </p>
+            </div>
+
+          </div>',
+        );
+
+
+        // Convert Button.
+        $form['ajax_wrapper']['btn_convert'] = array(
+          '#type' => 'submit',
+          '#value' => t('Convert'),
+          '#id' => 'btn-convert',
+          '#disabled' => TRUE,
+
+          '#prefix' => '<div class="div-form-field">',
+          '#suffix' => '</div>',
+        );
+
+        // Total Lines in the file.
+        // The value will be sent to tripal download api used to update progress bar.
+        $form['ajax_wrapper']['total_lines'] = array(
+          '#type' => 'hidden',
+          '#value' => $lines,
+        );
+
+
+        // AJAX callback wrapper.
+        // This is a wrapper for error message shown below Step 2 form.
+        $form['ajax_wrapper']['ajax_wrapper_S02_cols'] = array(
+          '#type' => 'markup',
+          '#prefix' => '<div id="ajax-wrapper-load-step02-columns">',
+          '#suffix' => '</div>',
+        );
+
+        // Check select boxes (backbone and position).
+        if ((isset($form_state['values']['sel_bone']) && isset($form_state['values']['sel_pos'])) &&
+            ($form_state['values']['sel_bone'] > 0 && $form_state['values']['sel_pos'] > 0)) {
+
+          $backbone = $form_state['values']['sel_bone'];
+          $position = $form_state['values']['sel_pos'];
+
+          if ($backbone == $position) {
+            // Same values.
+            $form['ajax_wrapper']['ajax_wrapper_S02_cols']['error']['#markup'] =
+              '<div class="messages error">Backbone and Position cannot be the same. Please try again.</div>';
+          }
+          else {
+            // Check values if they match anything in the AGP file.
+            // Check only the first x lines - see get_columns();
+
+            // Backbone.
+            // NOTE: decrement backbone since line count starts at 0 and in
+            //       same manner as poscnvert script file generator.
+            $backbone_less = $backbone - 1;
+            $position_less = $position - 1;
+
+            // Array to hold all errors found.
+            $arr_col_errors = array();
+            // Counter for all errors detected.
+            $error_count = 0;
+
+            foreach($check_rows as $r) {
+              $current_line = rtrim($r);
+
+              // Array to hold values required.
+              $arr_values = array(
+                'current_line' => $current_line,
+                'agp_file' => $AGP_file,
+              );
+
+              $is_valid = posconvert_is_valid($arr_values, $backbone_less, $position_less);
+
+              if (isset($is_valid['error'])) {
+                // Line has error.
+                $type = $is_valid['error'];
+                // Get the error message of error type.
+                $error_message = posconvert_error_message($type, null);
+                $arr_col_errors[$type] = $error_message;
+
+                $error_count++;
+              }
+              else {
+                // Next line please.
+                continue;
+              }
+            }
+
+            // Evaluate error.
+            // When error count equals to 10% of the number of rows checked, trigger an error.
+            $initial_rows_to_check = count($check_rows);
+
+            if ($error_count >= ($initial_rows_to_check*0.2)) {
+              foreach($arr_col_errors as $err_type => $err_message) {
+                $cols_markup =
+                  '<div class="messages error">We have checked the first few rows in your file and detected the following error:
+                     <br /><em>' . $err_message . '</em>
+                   </div>';
+
+                break;
+              }
+            }
+            else {
+              // Good and ready for conversion.
+              // Flag status to clear to go - this will flag JS and Drupal to enable convert button.
+              $form['ajax_wrapper']['btn_convert']['#disabled'] = FALSE;
+              $cols_markup = '<input type="hidden" id="mod-status-clear" value="1" />';
+            }
+
+            // Render an element.
+            $form['ajax_wrapper']['ajax_wrapper_S02_cols']['status'] = array(
+              '#type' => 'markup',
+              '#markup' => $cols_markup,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // JS and Stylesheet.
+  $path = drupal_get_path('module', 'posconvert');
+  $form['#attached']['css'] = array($path . '/theme/css/style.posconvert.css');
+  $form['#attached']['js']  = array($path . '/theme/js/js.posconvert.js');
+  $form['#attributes']['enctype'] = 'multipart/form-data';
+
+  return $form;
+}
+
+
+/**
+ * Function callback: AJAX load step 2 (COPY AND PASTE) - select backbone and position.
+ */
+function ajax_callback_load_step02($form, $form_state) {
+  return $form['ajax_wrapper'];
+}
+
+/**
+ * Function callback: AJAX load text data to textarea from file upload.
+ */
+function ajax_callback_load_step02_load($form, $form_state) {
+  return $form['ajax_wrapper_textarea'];
+}
+
+/**
+ * Function callback: AJAX load step 2 - varify backbone and position selected.
+ */
+function ajax_callback_load_step02_columns($form, $form_state) {
+  return $form['ajax_wrapper']['ajax_wrapper_S02_cols'];
+}
+
+/**
+ * Funciton: returns a number as a limit to number of rows to be examined.
+ * Taking in consideration the total number of rows.
+ *
+ * @param $total_rows
+ *   An integer containing the total number of lines in a file/text data.
+ *
+ * @return integer
+ */
+function posconvert_limit_rows($total_rows) {
+  // Var to limit the number of rows to examine.
+  $row_limit = 50;
+
+  if ($total_rows >= $row_limit) {
+    // More than the row limit, then return row limit.
+    $limit = $row_limit;
+  }
+  else {
+    // Less than the row limit, then return all rows.
+    $limit = $total_rows;
+  }
+
+  return $limit;
+}
+
+/**
+ * Function: read data/file and count number of columns available.
+ *
+ * @param $data
+ *   String value containing the data pasted in the textarea by user of programmatically.
+ * @param $flag
+ *   A String value to inidicate the source of the function call (read columns or limit rows).
+ *
+ * @return array
+ *   An array containing the column count, row count and first few rows for checking.
+ */
+function posconvert_read_textdata($data, $flag) {
+  // Array to contain rows for checking position and backbone.
+  $rows_for_check = array();
+  $rows_ignore = array();
+  // Break data by lines.
+  $rows = explode("\n", $data);
+  $total_rows = count($rows);
+  // Number of rows used to check position and backbone.
+  $num_rows_to_check = posconvert_limit_rows($total_rows);
+
+  // Read each line.
+  $count_to_check_rows = 0;
+  // First row of the text data.
+  $first_line = '';
+
+  foreach($rows as $line) {
+    if (!empty($line)) {
+      // In each line see if # is found.
+      $l = strpos($line, '#');
+
+      // The first line that does not contain the # symbol is assumed
+      // to be the first row of data containing the number of columns present in the file.
+      if($l === FALSE) {
+        if ($count_to_check_rows == 0) {
+          // Save the first line - this is the line where the
+          // backbone and position will based on.
+          $first_line = $line;
+        }
+
+        // Start the count.
+        $count_to_check_rows++;
+
+        // Start saving first x rows.
+        array_push($rows_for_check, $line);
+
+        // Disregard the rest of the row.
+        if ($count_to_check_rows == $num_rows_to_check) {
+
+          break;
+        }
+      }
+      else {
+        // Has #...
+        if ($flag == 'lim_rows') {
+          // Save the row.
+          array_push($rows_ignore, $line);
+        }
+
+        // Next line please.
+        continue;
+      }
+    }
+  }
+
+  // Return corresponding dataset base on flag/request.
+  if ($flag == 'get_cols') {
+    // Get the columns and make it as options in the select boxes.
+    // With the first row determined, break this row into single values based on tab.
+    $columns = str_getcsv($first_line, "\t");
+    $total_cols = count($columns);
+
+    // 1. Return the total number of columns present.
+    //    Use the value to let user select backbone and position columns.
+    // 2. Return total number of lines used in updating progress bar.
+    // 3. First x rows.
+    //    To validate if pos and backbone are valid and source of options for backbone and position
+    //    select boxes in step 2.
+
+    // in the order above.
+    return array($total_cols, $total_rows, $rows_for_check);
+  }
+  elseif ($flag == 'lim_rows') {
+    // When large file is supplied, limit the large text data.
+    // Rows to ignore.
+    $rows1 = implode("\n", $rows_ignore);
+    // Rows positions.
+    $rows2 = implode("\n", $rows_for_check);
+
+    // From file, load this to textarea.
+    $all_rows = $rows1 . "\n" . $rows2;
+
+    // 1. Return x number of rows.
+    // 2. Total number of rows.
+    return array($all_rows, $total_rows);
+  }
+}
+
+/**
+ * Implements hook_form_submit().
+ */
+function posconvert_form_submit($form, &$form_state) {
+  // Read the form values.
+  // When file is provided. Read the FID.
+  $source_file = isset($form_state['values']['file_fid'])
+    ? $form_state['values']['file_fid'] : 0;
+
+  // Textarea
+  $data = $form_state['values']['txt_data'];
+  // Backbone - selectbox.
+  $col1 = $form_state['values']['sel_bone'];
+  // Position - selectbox.
+  $col2 = $form_state['values']['sel_pos'];
+  // Total lines/rows.
+  $lines = $form_state['values']['total_lines'];
+
+  // Save the pasted values into a file. Later the content of this file will be parsed.
+  if ($source_file) {
+    $i = file_load($source_file);
+    $filename = $i->filename;
+    $file = $filename;
+  }
+  else {
+    $filename = 'posconvert' . date('YMd') .'_'. time() . '.tsv';
+    $file = file_save_data($data, 'public://' . $filename);
+  }
+
+
+  if ($file === FALSE) {
+    drupal_set_message('Error in writing file. Please try again.', 'error');
+  }
+  else {
+    // Send the values as query strings to tripal download api.
+    // See posconvert_trpdownload_generate_file().
+    $url = base64_encode('cb=' . $col1 . '&cp=' . $col2 . '&fl=' . $filename . '&tl=' . $lines);
+
+    // Format url for redirect.
+    $form_state['redirect'] = array(
+      '/posconvert/convert',
+      array(
+        'query' => array(
+          'code' => $url,
+        ),
+      ),
+    );
+  }
+}
+
+
+// TRIPAL DOWNLOAD IMPLEMENTATION
+
+/**
+ *  Implements hook_register_trpdownload_type().
+ */
+function posconvert_register_trpdownload_type() {
+  $types = array();
+
+  $types['agp_posconvert_tsv'] = array(
+    'type_name' => 'Posconvert TSV',
+    'format' => 'Tab-separated Values',
+    'functions' => array(
+      'generate_file' => 'posconvert_trpdownload_generate_file',
+      'summarize' => 'posconvert_trpdownload_summarize_download',
+      'get_filename' => 'posconvert_trpdownload_get_filename',
+      'get_file_suffix' => 'posconvert_trpdownload_get_suffix',
+      'get_format' => 'posconvert_trpdownload_get_readable_format',
+    ),
+  );
+
+  return $types;
+}
+
+/**
+ * Determine the file extension for the file to be generated.
+ */
+function posconvert_trpdownload_get_suffix($vars) {
+  return 'tsv';
+}
+
+/**
+ * Generate a readable and unique filename for the file to be generated.
+ */
+function posconvert_trpdownload_get_filename($vars) {
+  $filename = 'converted_position.Lc1.2.' . date('YMd') . time();
+  return $filename;
+}
+
+/**
+ * Generate file for download.
+ */
+function posconvert_trpdownload_generate_file($variables, $job_id = NULL) {
+  // Get query string.
+  // See hook_submit().
+  $code = '';
+  foreach($variables as $l => $v) {
+    if(is_array($v)) {
+      foreach($v as $j => $m) {
+        if ($j == 'code') {
+          $code = $m;
+        }
+      }
+    }
+
+    if ($l == 'filename') {
+      $tdAPI_filename = $v;
+    }
+  }
+
+  $q = base64_decode($code);
+  list($q1, $q2, $q3, $q4) = explode('&', $q);
+
+  $backbone    = trim(str_replace('cb=', '', $q1));
+  $position    = trim(str_replace('cp=', '', $q2));
+  // File containing the data pasted in textarea field.
+  $input_file  = drupal_realpath('public://') . '/' . trim(str_replace('fl=', '', $q3));
+  // Tripal download API destination file.
+  $output_file = variable_get('trpdownload_fullpath', '') . $tdAPI_filename;
+  // Number of lines.
+  $total_lines = trim(str_replace('tl=', '', $q4));
+  // Source of lookup AGP
+  $agp_file = drupal_get_path('module', 'posconvert') . '/includes/lens_culinaris_v0_8_lookup.agp';
+
+  // Convert.
+  posconvert_convert_SNPs_with_agp($input_file, $agp_file, $backbone, $position, $output_file, $job_id, $total_lines);
+}

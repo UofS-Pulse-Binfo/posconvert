@@ -1,0 +1,4 @@
+name = Position Convert
+description = Converts positions in a tab-delimeted file (e.g. VCF) from Lc0.8 to Lc1.2
+package = KnowPulse Extensions
+core = 7.x

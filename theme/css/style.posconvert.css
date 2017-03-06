@@ -1,0 +1,282 @@
+/**
+ * @file
+ * Style posconvert.
+ */
+
+/* Textarea */
+#posconvert-form textarea {
+  resize: none;
+  font-size: 0.8em !important;
+  padding: 10px;
+}
+
+/* Error message */
+#posconvert-form .messages {
+  clear: both;
+  margin: 0;
+}
+
+/* Title and slide container */
+#div-page-ctr-panel {
+  border-bottom: 1px solid #d6d6d6;
+  padding: 0 0 15px 0;
+  position: relative;
+
+  -moz-box-shadow:    0 5px 7px -9px #333333;
+  -webkit-box-shadow: 0 5px 7px -9px #333333;
+  box-shadow:         0 5px 7px -9px #333333;
+}
+
+#link-slide {
+  font-size: 1em;
+}
+
+#div-slide-container {
+  display: none;
+  padding: 20px 15px 5px 15px;
+}
+
+#txt-sample-file-field {
+  border: none;
+  cursor: default;
+  width: 97.3%;
+}
+
+
+/* Step container */
+.div-step-container {
+  margin: 25px 0 35px 0;
+}
+
+.div-step-container span {
+  background-color: #304356;
+  color: #FFFFFF;
+  float: left;
+  font-size: 1.5em;
+  font-weight: 300;
+  padding: 10px 20px;
+}
+
+.div-step-container h3,
+.div-step-container p {
+  margin: 0;
+  padding: 0 0 0 70px;
+}
+
+.div-step-container h3 {
+  font-size: 1.35em;
+  font-weight: 300;
+  line-height: 23px;
+  margin: 0 0 5px 0;
+}
+
+/* Textarea */
+#form-field-textarea {
+  position: relative;
+}
+
+#form-field-textarea textarea {
+  background-image: url('../img/icon-copy-paste.png');
+  background-position: center;
+  background-repeat:  no-repeat;
+  background-color: #FFFFFF;
+  background-size: 200px;
+  border: 1px solid #CCCCCC;
+  cursor: copy;
+
+  margin: 0;
+}
+
+/* Reset form button */
+#link-reset-form-container {
+  background-color: #AAAAAA;
+  bottom: 0;
+  color: #FFFFFF;
+  cursor: pointer;
+  display: none;
+  font-weight: 300;
+  font-size: 0.9em;
+  font-family: sans-serif;
+  height: 65px;
+  line-height: 60px;
+  opacity: 0.7;
+  padding: 0;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+
+  -webkit-transition: opacity 0.7s ease-out;
+  -moz-transition: opacity 0.7s ease-out;
+  -o-transition: opacity 0.7s ease-out;
+  transition: opacity 0.7s ease-out;
+}
+
+#link-reset-form-container:hover {
+  opacity: 1;
+
+  -webkit-transition: opacity 0.5s ease-out;
+  -moz-transition: opacity 0.5s ease-out;
+  -o-transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out;
+}
+
+#link-reset-form-container span {
+  background-color: #304356;
+  border: 2px solid #CCCCCC;
+  margin: 0 20px 0 0;
+  padding: 10px;
+
+  -webkit-border-radius: 20px;
+  -moz-border-radius: 20px;
+  border-radius: 20px;
+}
+
+#link-reset-form-container span:hover {
+  border: 3px solid #F7F7F7;
+}
+
+/* Select options, button - step 2 */
+#ajax-wrapper-load-step02 .div-form-field {
+  float: left;
+  margin: 0 0 20px 0;
+}
+
+#ajax-wrapper-load-step02 .div-form-field .form-item {
+  margin: 0 0 0 70px;
+  width: 150px;
+}
+
+#ajax-wrapper-load-step02 .div-form-field .help-text {
+  display: none;
+  font-size: 0.9em;
+  font-family: sans-serif;
+  padding: 7px 0 0 70px;
+  position: absolute;
+  width: 220px;
+}
+
+#ajax-wrapper-load-step02 .div-form-field .help-text p {
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+#ajax-wrapper-load-step02 .div-form-field .help-icon {
+  background: url('../img/message-16-help.png') center no-repeat;
+  cursor: pointer;
+  margin: -20px 0 0 180px;
+  opacity: 0.7;
+  width: 20px;
+
+  -webkit-transition: opacity 0.5s ease-out;
+  -moz-transition: opacity 0.5s ease-out;
+  -o-transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out;
+}
+
+#ajax-wrapper-load-step02 .div-form-field .help-icon:hover {
+  opacity: 1;
+
+  -webkit-transition: opacity 0.5s ease-out;
+  -moz-transition: opacity 0.5s ease-out;
+  -o-transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out;
+}
+
+#ajax-wrapper-load-step02 input {
+  margin: 15px 0 0 60px;
+}
+
+/* Loading message */
+span.win-loading {
+  background: url('../img/throbber-active.gif') no-repeat left;
+  margin-top: 15px;
+  margin-left: 40px;
+}
+
+/* File uploader container */
+#edit-file-upload {
+  margin: 0 0 13px 0;
+  padding: 0 !important;
+}
+
+#container-file-upload {
+  display: none;
+  position: absolute;
+  margin-top: -280px;
+  width:100%;
+}
+
+#container-upload-fields {
+  background-color: #FFFFFF;
+  border: 2px solid #6E6E6E;
+  min-height: 80px;
+  margin: 0 auto;
+  padding: 30px 30px 32px 30px;
+  position: relative;
+  text-align: left;
+  width: 390px;
+
+  -moz-box-shadow:    1px 1px 5px 2px #CCCCCC;
+  -webkit-box-shadow: 1px 1px 5px 2px #CCCCCC;
+  box-shadow:         1px 1px 5px 2px #CCCCCC;
+}
+
+#container-upload-fields input:first-child {
+  padding: 0;
+}
+
+
+#container-upload-fields .messages {
+  font-size: 0.8em;
+  margin: 0 0 10px 0;
+}
+
+#link-upload-container {
+  font-size: 1em;
+  position: absolute;
+  text-align: center;
+  text-decoration: underline;
+  top: 63%;
+  width: 100%;
+}
+
+#link-upload-cancel {
+  background-color: #6E6E6E;
+  color: #FFFFFF;
+  font-family: sans-serif;
+  left: 93.5%;
+  padding: 7px 10px 0 10px;
+  position: absolute;
+  top: 0;
+  text-align: center;
+}
+
+#chk-load-file-data-to-txtfield-refresh {
+  position: absolute;
+  visibility: hidden;
+}
+
+#btn-load-file-data-to-txtfield {
+  display: none;
+}
+
+
+/* Disclaimer */
+#posconvert-form .messages strong {
+  display: block;
+  color: red;
+  font-size: 1.1em;
+  font-weight: 400;
+  text-decoration: underline;
+}
+
+#posconvert-form .messages ul {
+  list-style-type: none;
+  margin: 0;
+}
+
+#posconvert-form .messages ul li {
+  background: url('../img/message-16-ok.png') no-repeat left top;
+  line-height: 17px;
+  margin: 10px 0 10px 0;
+  padding: 0 0 0 23px;
+}
