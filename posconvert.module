@@ -69,6 +69,38 @@ function posconvert_preprocess_posconvert_form(&$variables, $hook) {
   $sample_Lc08 = $posconvert_path . '/includes/sample_lc08_positions.inc';
 
   $variables['posconvert_sample_file'] = $sample_Lc08;
+
+  // Max file limit.
+  $variables['posconvert_max_file_limit'] = ini_get('upload_max_filesize');
+  // Max line linmit.
+  $variables['posconvert_max_line_limit'] = 20000;
+
+  // Test to see if user has an ongoing download request.
+  // If so, prevent this form from loading and start a new convert process.
+  $log_user = $GLOBALS['user']->uid;
+  $module_name = 'trpdownload_api';
+  // Job status not listed below is considered an ongoing job.
+  $job_name = 'Download Posconvert TSV';
+  $job_status = array('Completed', 'Error', 'Cancelled');
+
+  $sql = "SELECT job_id FROM tripal_jobs
+    WHERE
+      uid = :log_user
+      AND modulename = :module_name
+      AND job_name = :job_name
+      AND TRIM(status) NOT IN (:job_status)
+    LIMIT 1";
+
+  $args = array(
+    ':log_user'    => $log_user,
+    ':module_name' => $module_name,
+    ':job_name'    => $job_name,
+    ':job_status'  => $job_status
+  );
+
+  $job = db_query($sql, $args);
+
+  $variables['posconvert_has_job'] = ($job->rowCount()) ? 1 : 0;
 }
 
 
@@ -236,7 +268,12 @@ function posconvert_form($form, &$form_state) {
         $lines = $file_row_count;
       }
 
-      if ($cols < 2 || count($check_rows) <= 0) {
+      if ($lines > 19500) {
+        // Too many lines nearing the allowed line limit.
+        $form['ajax_wrapper']['error']['#markup'] =
+          '<div class="messages error">Text data is near the limit of allowed number of line. Please try again.</div>';
+      }
+      elseif ($cols < 2 || count($check_rows) <= 0) {
         // Not enough columns.
         $form['ajax_wrapper']['error']['#markup'] =
           '<div class="messages error">Text data does not contain enough columns/rows or is not tab separated. Please try again.</div>';
@@ -655,6 +692,23 @@ function posconvert_register_trpdownload_type() {
   );
 
   return $types;
+}
+
+/**
+ * Display additional instruction to user while in download page.
+ */
+function posconvert_trpdownload_summarize_download($vars) {
+  $notice = '
+    <div style="position: absolute; margin: 130px auto 0 auto; display: inline-block; left: 1%; width: 98%; text-align: left;">
+      <div class="messages status warning" style="font-size: 1.2em">
+        Please do not navigate away from this page if you wish to download your converted file.
+        Once the progress bar has started, your file is already submitted to the system and
+        it will need to complete before any other files can start converting (<em>this also includes other users</em>).
+        Thank you for your patience!
+      </div>
+    </div>';
+
+  return $notice;
 }
 
 /**
