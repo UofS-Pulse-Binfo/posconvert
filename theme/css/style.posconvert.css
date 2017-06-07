@@ -274,7 +274,7 @@ span.win-loading {
   margin: 0;
 }
 
-#posconvert-form .messages ul li {
+#container-warning ul li {
   background: url('../img/message-16-ok.png') no-repeat left top;
   line-height: 17px;
   margin: 10px 0 10px 0;
