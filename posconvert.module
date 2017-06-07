@@ -271,7 +271,7 @@ function posconvert_form($form, &$form_state) {
       if ($lines > 19500) {
         // Too many lines nearing the allowed line limit.
         $form['ajax_wrapper']['error']['#markup'] =
-          '<div class="messages error">Text data is near the limit of allowed number of line. Please try again.</div>';
+          '<div class="messages error">Your file exceeds the maximum number of lines. Please try a smaller file or contact us.</div>';
       }
       elseif ($cols < 2 || count($check_rows) <= 0) {
         // Not enough columns.

@@ -15,7 +15,7 @@
       <strong>This is a <em>Beta Release</em> and is still undergoing testing.</strong>
       <em style="color: red; font-weight: bold">Important:</em>
       Posconvert is limited to files that are less than <?php print $posconvert_max_file_limit; ?>b or <?php print number_format($posconvert_max_line_limit); ?> lines (not including the header).
-      It will take up to an hour to conver a file  of <?php print number_format($posconvert_max_line_limit); ?> lines. If you have a larger file, please
+      It will take up to an hour to convert <?php print number_format($posconvert_max_line_limit); ?> lines. If you have a larger file, please
       contact us directly for help converting your file.
     </p>
 
@@ -45,7 +45,7 @@
 if ($posconvert_has_job) {
 ?>
 
-  <div class="messages status warning">We have detected that you have an ongoing Position Convert request. Please allow thie request to complete before doing another conversion.</div>
+  <div class="messages status warning">We have detected that you have an ongoing Position Convert request. Please allow the request to complete before doing another conversion.</div>
 
 <?php
 }
