@@ -69,6 +69,38 @@ function posconvert_preprocess_posconvert_form(&$variables, $hook) {
   $sample_Lc08 = $posconvert_path . '/includes/sample_lc08_positions.inc';
 
   $variables['posconvert_sample_file'] = $sample_Lc08;
+
+  // Max file limit.
+  $variables['posconvert_max_file_limit'] = posconvert_max_line_limit('file_size');
+  // Max line linmit.
+  $variables['posconvert_max_line_limit'] = posconvert_max_line_limit('line_limit');
+
+  // Test to see if user has an ongoing download request.
+  // If so, prevent this form from loading and start a new convert process.
+  $log_user = $GLOBALS['user']->uid;
+  $module_name = 'trpdownload_api';
+  // Job status not listed below is considered an ongoing job.
+  $job_name = 'Download Posconvert TSV';
+  $job_status = array('Completed', 'Error', 'Cancelled');
+
+  $sql = "SELECT job_id FROM tripal_jobs
+    WHERE
+      uid = :log_user
+      AND modulename = :module_name
+      AND job_name = :job_name
+      AND TRIM(status) NOT IN (:job_status)
+    LIMIT 1";
+
+  $args = array(
+    ':log_user'    => $log_user,
+    ':module_name' => $module_name,
+    ':job_name'    => $job_name,
+    ':job_status'  => $job_status
+  );
+
+  $job = db_query($sql, $args);
+
+  $variables['posconvert_has_job'] = ($job->rowCount()) ? 1 : 0;
 }
 
 
@@ -228,7 +260,7 @@ function posconvert_form($form, &$form_state) {
     }
     else {
       // Next test, see if it has sufficient columns.
-      list($cols, $lines, $check_rows) = posconvert_read_textdata($txt_data, 'get_cols');
+      list($cols, $lines, $check_rows, $ignore_rows) = posconvert_read_textdata($txt_data, 'get_cols');
 
       // Since only section of the file is retured, ensure the tripal download api
       // uses the right number of lines/rows.
@@ -236,7 +268,14 @@ function posconvert_form($form, &$form_state) {
         $lines = $file_row_count;
       }
 
-      if ($cols < 2 || count($check_rows) <= 0) {
+
+      $max_line_limit = posconvert_max_line_limit('line_limit');
+      if (($lines - $ignore_rows) > $max_line_limit) {
+        // Too many lines nearing the allowed line limit.
+        $form['ajax_wrapper']['error']['#markup'] =
+          '<div class="messages error">Your file exceeds the maximum number of lines. Please try a smaller file or contact us.</div>';
+      }
+      elseif ($cols < 2 || count($check_rows) <= 0) {
         // Not enough columns.
         $form['ajax_wrapper']['error']['#markup'] =
           '<div class="messages error">Text data does not contain enough columns/rows or is not tab separated. Please try again.</div>';
@@ -557,15 +596,18 @@ function posconvert_read_textdata($data, $flag) {
     $columns = str_getcsv($first_line, "\t");
     $total_cols = count($columns);
 
+    $total_rows_ignore = count($rows_ignore);
+
     // 1. Return the total number of columns present.
     //    Use the value to let user select backbone and position columns.
     // 2. Return total number of lines used in updating progress bar.
     // 3. First x rows.
     //    To validate if pos and backbone are valid and source of options for backbone and position
     //    select boxes in step 2.
+    // 4. Rows to ignore (#) - To be used to get the actual count of lines to convert.
 
     // in the order above.
-    return array($total_cols, $total_rows, $rows_for_check);
+    return array($total_cols, $total_rows, $rows_for_check, $total_rows_ignore);
   }
   elseif ($flag == 'lim_rows') {
     // When large file is supplied, limit the large text data.
@@ -658,6 +700,23 @@ function posconvert_register_trpdownload_type() {
 }
 
 /**
+ * Display additional instruction to user while in download page.
+ */
+function posconvert_trpdownload_summarize_download($vars) {
+  $notice = '
+    <div style="position: absolute; margin: 130px auto 0 auto; display: inline-block; left: 1%; width: 98%; text-align: left;">
+      <div class="messages status warning" style="font-size: 1.2em">
+        Please do not navigate away from this page if you wish to download your converted file.
+        Once the progress bar has started, your file is already submitted to the system and
+        it will need to complete before any other files can start converting (<em>this also includes other users</em>).
+        Thank you for your patience!
+      </div>
+    </div>';
+
+  return $notice;
+}
+
+/**
  * Determine the file extension for the file to be generated.
  */
 function posconvert_trpdownload_get_suffix($vars) {
@@ -709,4 +768,40 @@ function posconvert_trpdownload_generate_file($variables, $job_id = NULL) {
 
   // Convert.
   posconvert_convert_SNPs_with_agp($input_file, $agp_file, $backbone, $position, $output_file, $job_id, $total_lines);
+}
+
+
+/**
+ * Helper function: Return max line and file size limit.
+ */
+function posconvert_max_line_limit($setting) {
+  switch($setting) {
+    case 'line_limit':
+      return 20000;
+      break;
+
+    case 'file_size':
+      // Setting has M.
+      $l = ini_get('upload_max_filesize');
+      $file_limit = trim(str_replace('M', '', $l));
+      return $file_limit;
+      break;
+  }
+}
+
+
+/**
+ * Implements hook_file_validate().
+ */
+function posconvert_file_validate($file) {
+  if ($file->source == 'file') {
+    $file_size = $file->filesize;
+    $file_limit = posconvert_max_line_limit('file_size');
+    $file_limit *= 1000000;
+
+    if ($file_size >= $file_limit) {
+      drupal_set_message('File uploaded exceeds the maximum file size limit. Please try a smaller file or contact us.', 'error');
+      return FALSE;
+    }
+  }
 }

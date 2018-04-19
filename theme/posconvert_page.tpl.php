@@ -10,8 +10,15 @@
 ?>
 
 <div id="div-page-ctr-panel">
-  <div class="messages warning">
-    <strong>This is a <em>Beta Release</em> and is still undergoing testing.</strong>
+  <div id="container-warning" class="messages warning">
+    <p>
+      <strong>This is a <em>Beta Release</em> and is still undergoing testing.</strong>
+      <em style="color: red; font-weight: bold">Important:</em>
+      Posconvert is limited to files that are less than <?php print $posconvert_max_file_limit; ?>Mb or <?php print number_format($posconvert_max_line_limit); ?> lines (not including the header).
+      It will take up to an hour to convert <?php print number_format($posconvert_max_line_limit); ?> lines. If you have a larger file, please
+      contact us directly for help converting your file.
+    </p>
+
     Double check that you have:
     <ul>
       <li>Chosen the correct columns for the name of the backbone (ie. contig) and position on the genome.</li>
@@ -35,6 +42,17 @@
 </div>
 
 <?php
+if ($posconvert_has_job) {
+?>
+
+  <div class="messages status warning">We have detected that you have an ongoing Position Convert request. Please allow the request to complete before doing another conversion.</div>
+
+<?php
+}
+else {
+
   // Render form elements.
   print drupal_render_children($form);
+
+}
 ?>
