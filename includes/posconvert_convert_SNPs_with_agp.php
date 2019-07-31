@@ -50,7 +50,9 @@ function posconvert_convert_SNPs_with_agp($input_file, $agp_file, $backbone, $po
   if (!$input_file) { die ("ERROR: Unable to find input file: $input_file!\n"); }
   $agp_file = trim($agp_file);
   if (!$agp_file) { die ("ERROR: Unable to find agp file: $agp_file!\n"); }
-
+  $agp_file_in_gff_format = $agp_file . '.sorted.gff.gz';
+  print 'indexed gff format agp file:' . $agp_file_in_gff_format . "\n\n";
+  if (!$agp_file_in_gff_format) { die ("ERROR: Unable to find agp file: $agp_file_in_gff_format!\n"); }
   // ----- PARAMETER VALIDATION -----
   // Check that both our backbone and position parameters are positive integers
   if (!$backbone || !ctype_digit($backbone)) { die ("ERROR: Backbone column is not a positive integer ($backbone).\n"); }
@@ -65,7 +67,8 @@ function posconvert_convert_SNPs_with_agp($input_file, $agp_file, $backbone, $po
   if ($output_file === NULL) { $output_file = $input_file . '.posconverted'; }
   $OUTFILE = fopen($output_file, 'w') or die ("ERROR: Unable to create $output_file!\n");
 
-  $AGP_file = file($agp_file);
+  //$AGP_file = file($agp_file);
+  $AGP_file = $agp_file_in_gff_format;
 
   print "STARTING.\n";
   print "Job Id: " . $job_id . "\n";
@@ -230,8 +233,11 @@ function posconvert_is_valid($arr_val, $backbone, $position) {
 
   // Now perform a simple grep to get the line in the agp file that matches our backbone
   $AGP_file = $arr_val['agp_file'];
-  $matches = preg_grep("/\t$split_line[$backbone]\t/", $AGP_file);
-  $count_match = count($matches);
+  $command = 'tabix ' . $AGP_file . ' ';
+  $command .= $split_line[$backbone] . ':' . $split_line[$position] . '-' . $split_line[$position];
+  //$matches = preg_grep("/\t$split_line[$backbone]\t/", $AGP_file);
+  $matches = shell_exec($command);
+  $count_match = count(explode("\n", $matches));
 
   if ($count_match > 1) {
     // UNEXPECTED # OF MATCHES.
@@ -253,6 +259,7 @@ function posconvert_is_valid($arr_val, $backbone, $position) {
 
   // Check Position.
   $agp_line = explode("\t", current($matches));
+  $agp_line = explode(";", $agp_line[8]);
 
   // Build the new output line with converted backbone and position
   $new_backbone = $agp_line[0];
@@ -273,6 +280,22 @@ function posconvert_is_valid($arr_val, $backbone, $position) {
 
   // No errors return converted line.
   return $split_line;
+}
+
+/**
+ * Function: Read agp file into one array with key
+ *
+ * @param $agp_in_file
+ *   agp file, should have checked path exist and readable
+ *
+ * @return array
+ *   An array containing unique key to make connection for convert
+ */
+function read_agp_file_2_array($agp_lookup_file){
+
+
+
+
 }
 
 
