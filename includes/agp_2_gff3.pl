@@ -6,9 +6,11 @@ use strict;
 # Arguements:
 # 1. Input agp file
 # 2. Output gff3 like File
+# 3. sort and compress the gff3 file
+# 4. index compressed file with tabix
 
 my $file_in = $ARGV[0];
-my $file_out = $ARGV[1];
+my $file_out = $ARGV[0].'.gff';
 
 open (my $IN,"<", $file_in) or die ("Could not open file: $file_in .\n");
 open (my $OUT, ">", $file_out) or die("Could not open output file.\n");
@@ -34,4 +36,13 @@ while (defined (my $line = <$IN>)){
 }
 close($IN);
 close($OUT);
+
+$command = '(grep ^"#" ' . $file_out .'; grep -v ^"#" ' . $file_out . ' | sort -k1,1 -k4,4n) | bgzip > ' . $file_in . '.sorted.gff.gz';
+print 'Command for sort and compress: ', $command , " \n";
+system($command);
+
+$command = 'tabix -p gff ' . $file_in . '.sorted.gff.gz';
+print 'Command for indexing: ', $command, " \n";
+system($command);
+
 exit();

@@ -236,7 +236,7 @@ function posconvert_is_valid($arr_val, $backbone, $position) {
   //$matches = preg_grep("/\t$split_line[$backbone]\t/", $AGP_file);
   $matches = shell_exec($command);
   $matches = trim($matches);
-  print $matches . "\n";
+  print $split_line[$backbone].':'.$split_line[$position].' by tabix: ' . $matches . "\n";
   $matches_exp = explode("\n", $matches);
   $count_match = count($matches_exp);
 
