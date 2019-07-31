@@ -76,7 +76,6 @@ function posconvert_convert_SNPs_with_agp($input_file, $agp_file, $backbone, $po
   $i = 0;
   while(!feof($INFILE)) {
     $i++;
-
     $percent = ($i / $total_lines) * 100;
     if ($percent % 5 == 0) {
       db_query('UPDATE {tripal_jobs} SET progress = :percent WHERE job_id = :id',
@@ -84,7 +83,6 @@ function posconvert_convert_SNPs_with_agp($input_file, $agp_file, $backbone, $po
 
       drush_print(round($percent, 0) . '% Complete...');
     }
-
     $current_line = fgets($INFILE);
     if (empty($current_line)) continue;
 
@@ -237,7 +235,10 @@ function posconvert_is_valid($arr_val, $backbone, $position) {
   $command .= $split_line[$backbone] . ':' . $split_line[$position] . '-' . $split_line[$position];
   //$matches = preg_grep("/\t$split_line[$backbone]\t/", $AGP_file);
   $matches = shell_exec($command);
-  $count_match = count(explode("\n", $matches));
+  $matches = trim($matches);
+  print $matches . "\n";
+  $matches_exp = explode("\n", $matches);
+  $count_match = count($matches_exp);
 
   if ($count_match > 1) {
     // UNEXPECTED # OF MATCHES.
@@ -258,7 +259,7 @@ function posconvert_is_valid($arr_val, $backbone, $position) {
   }
 
   // Check Position.
-  $agp_line = explode("\t", current($matches));
+  $agp_line = explode("\t", $matches_exp[0]);
   $agp_line = explode(";", $agp_line[8]);
 
   // Build the new output line with converted backbone and position
