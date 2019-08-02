@@ -77,7 +77,7 @@ function posconvert_convert_SNPs_with_agp($input_file, $agp_file, $backbone, $po
   while(!feof($INFILE)) {
     $i++;
     $percent = ($i / $total_lines) * 100;
-    if ($percent % 5 == 0) {
+    if ($percent % 10 == 0) {
       db_query('UPDATE {tripal_jobs} SET progress = :percent WHERE job_id = :id',
         array(':percent' => round($percent), ':id' => $job_id));
 
@@ -229,14 +229,14 @@ function posconvert_is_valid($arr_val, $backbone, $position) {
     );
   }
 
-  // Now perform a simple grep to get the line in the agp file that matches our backbone
+  // Now use tabix to find match
   $AGP_file = $arr_val['agp_file'];
   $command = 'tabix ' . $AGP_file . ' ';
   $command .= $split_line[$backbone] . ':' . $split_line[$position] . '-' . $split_line[$position];
-  //$matches = preg_grep("/\t$split_line[$backbone]\t/", $AGP_file);
+
   $matches = shell_exec($command);
   $matches = trim($matches);
-  print $split_line[$backbone].':'.$split_line[$position].' by tabix: ' . $matches . "\n";
+
   $matches_exp = explode("\n", $matches);
   $count_match = count($matches_exp);
 

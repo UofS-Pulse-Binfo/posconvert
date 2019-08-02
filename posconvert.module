@@ -473,7 +473,6 @@ function posconvert_form($form, &$form_state) {
   $form['#attached']['css'] = array($path . '/theme/css/style.posconvert.css');
   $form['#attached']['js']  = array($path . '/theme/js/js.posconvert.js');
   $form['#attributes']['enctype'] = 'multipart/form-data';
-
   return $form;
 }
 
@@ -753,6 +752,7 @@ function posconvert_trpdownload_generate_file($variables, $job_id = NULL) {
   }
 
   $q = base64_decode($code);
+  dpm('$q',$q);
   list($q1, $q2, $q3, $q4) = explode('&', $q);
 
   $backbone    = trim(str_replace('cb=', '', $q1));
